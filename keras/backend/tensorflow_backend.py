@@ -467,7 +467,7 @@ def is_keras_tensor(x):
                           tf_variables.Variable,
                           tf.SparseTensor)):
         raise ValueError('Unexpectedly found an instance of type `' + str(type(x)) + '`. '
-                         'Expected a symbolic tensor instance.')
+                                                                                     'Expected a symbolic tensor instance.')
     return hasattr(x, '_keras_history')
 
 
@@ -2830,7 +2830,7 @@ def switch(condition, then_expression, else_expression):
                              ' equal to rank of `then_expression` and '
                              '`else_expression`. ndim(condition)=' +
                              str(cond_ndim) + ', ndim(then_expression)'
-                             '=' + str(expr_ndim))
+                                              '=' + str(expr_ndim))
         if cond_ndim > 1:
             ndim_diff = expr_ndim - cond_ndim
             cond_shape = tf.concat([tf.shape(condition), [1] * ndim_diff], axis=0)
@@ -3785,7 +3785,7 @@ def bias_add(x, bias, data_format=None):
             if len(bias_shape) == 1:
                 x += reshape(bias, (1, 1, bias_shape[0]))
             else:
-                x += reshape(bias, (1, ) + bias_shape)
+                x += reshape(bias, (1,) + bias_shape)
     else:
         x = tf.nn.bias_add(x, bias)
     return x
@@ -4156,4 +4156,74 @@ def local_conv2d(inputs, kernel, kernel_size, strides, output_shape, data_format
         output = permute_dimensions(output, (2, 3, 0, 1))
     else:
         output = permute_dimensions(output, (2, 0, 1, 3))
+    return output
+
+
+def local_conv3(inputs, kernel, kernel_size, strides, output_shape, data_format=None):
+    """Apply 2D conv with un-shared weights.
+
+    # Arguments
+        inputs: 5D tensor with shape:
+                (batch_size, filters, new_rows, new_cols, new_depths)
+                if data_format='channels_first'
+                or 5D tensor with shape:
+                (batch_size, new_rows, new_cols, new_depths, filters)
+                if data_format='channels_last'.
+        kernel: the unshared weight for convolution,
+                with shape (output_items, feature_dim, filters)
+        kernel_size: a tuple of 3 integers, specifying the
+                     width and height of the 3D convolution window.
+        strides: a tuple of 3 integers, specifying the strides
+                 of the convolution along the width and height.
+        output_shape: a tuple with (output_row, output_col, output_dep)
+        data_format: the data format, channels_first or channels_last
+
+    # Returns
+        A 5D tensor with shape:
+        (batch_size, filters, new_rows, new_cols, new_depths)
+        if data_format='channels_first'
+        or 5D tensor with shape:
+        (batch_size, new_rows, new_cols, new_depths, filters)
+        if data_format='channels_last'.
+
+    # Raises
+        ValueError: if `data_format` is neither
+                    `channels_last` or `channels_first`.
+    """
+    if data_format is None:
+        data_format = image_data_format()
+    if data_format not in {'channels_first', 'channels_last'}:
+        raise ValueError('Unknown data_format: ' + str(data_format))
+
+    stride_row, stride_col, stride_depth = strides
+    output_row, output_col, output_depth = output_shape
+    kernel_shape = int_shape(kernel)
+    _, feature_dim, filters = kernel_shape
+
+    xs = []
+    for i in range(output_row):
+        for j in range(output_col):
+            for k in range(output_depth):
+                slice_row = slice(i * stride_row,
+                                  i * stride_row + kernel_size[0])
+                slice_col = slice(j * stride_col,
+                                  j * stride_col + kernel_size[1])
+                slice_depth = slice(k * stride_depth,
+                                    k * stride_depth + kernel_size[2])
+                if data_format == 'channels_first':
+                    xs.append(reshape(inputs[:, :, slice_row, slice_col, slice_depth],
+                                      (1, -1, feature_dim)))
+                else:
+                    xs.append(reshape(inputs[:, slice_row, slice_col, slice_depth, :],
+                                      (1, -1, feature_dim)))
+
+    x_aggregate = concatenate(xs, axis=0)
+    output = batch_dot(x_aggregate, kernel)
+    output = reshape(output,
+                     (output_row, output_col, output_depth, -1, filters))
+
+    if data_format == 'channels_first':
+        output = permute_dimensions(output, (3, 4, 0, 1, 2))
+    else:
+        output = permute_dimensions(output, (3, 0, 1, 2, 4))
     return output

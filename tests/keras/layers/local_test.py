@@ -59,5 +59,39 @@ def test_locallyconnected_2d():
                    input_shape=(num_samples, stack_size, num_row, num_col))
 
 
+@keras_test
+def test_locallyconnected_3d():
+    num_samples = 5
+    filters = 3
+    stack_size = 4
+    num_row = 6
+    num_col = 8
+    num_dep = 10
+    padding = 'valid'
+
+    for strides in [(1, 1, 1), (2, 2, 2)]:
+        layer_test(local.LocallyConnected3D,
+                   kwargs={'filters': filters,
+                           'kernel_size': 3,
+                           'padding': padding,
+                           'kernel_regularizer': 'l2',
+                           'bias_regularizer': 'l2',
+                           'activity_regularizer': 'l2',
+                           'strides': strides,
+                           'data_format': 'channels_last'},
+                   input_shape=(num_samples, num_row, num_col, num_dep, stack_size))
+
+        layer_test(local.LocallyConnected3D,
+                   kwargs={'filters': filters,
+                           'kernel_size': (3, 3, 3),
+                           'padding': padding,
+                           'kernel_regularizer': 'l2',
+                           'bias_regularizer': 'l2',
+                           'activity_regularizer': 'l2',
+                           'strides': strides,
+                           'data_format': 'channels_first'},
+                   input_shape=(num_samples, stack_size, num_row, num_col, num_dep))
+
+
 if __name__ == '__main__':
     pytest.main([__file__])

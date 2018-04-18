@@ -2578,3 +2578,7 @@ def local_conv2d(inputs, kernel, kernel_size, strides, output_shape, data_format
                          (output_row, output_col, -1, filters))
         output = permute_dimensions(output, (2, 0, 1, 3))
     return output
+
+
+def local_conv3d(inputs, kernel, kernel_size, strides, output_shape, data_format=None):
+    raise NotImplementedError
